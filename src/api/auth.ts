@@ -30,8 +30,6 @@ export interface AuthResponse {
 }
 
 // ── Mock Data ────────────────────────────────────────────────────────────────
-// Seeded with the same test user already used by the mocked Projects/Tasks
-// API (src/mocks/handlers.ts), so logging in with it unlocks the sample data.
 
 const fakeUsers: FakeUser[] = [
   {

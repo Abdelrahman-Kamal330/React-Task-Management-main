@@ -85,14 +85,11 @@ export interface TaskFilters {
   assignee?: string;
   search?: string;
 }
-
-
 // ─────────────────────────────────────────────────────────────────────────────
 // TODO 2: Authentication token
 // ─────────────────────────────────────────────────────────────────────────────
 
 const getToken = (): string | null => localStorage.getItem('tf_token');
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TODO 3: HTTP request helper
@@ -146,7 +143,6 @@ const request = async <T>(
   return data as T;
 };
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // TODO 4: HTTP helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,7 +157,6 @@ const patch = <T>(path: string, body?: unknown): Promise<T> =>
   request<T>('PATCH', path, body);
 
 const del = <T>(path: string): Promise<T> => request<T>('DELETE', path);
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TODO 5: Authentication
@@ -180,7 +175,6 @@ export const registerUser = async (
   return response;
 };
 
-
 export const loginUser = async (
   data: LoginData,
 ): Promise<AuthResponse> => {
@@ -188,7 +182,6 @@ export const loginUser = async (
   saveSession(response.token, response.user);
   return response;
 };
-
 
 export const getMe = (): User | null => {
   try {
@@ -199,10 +192,8 @@ export const getMe = (): User | null => {
   }
 };
 
-
 export const isAuthenticated = (): boolean =>
   Boolean(getToken() && getMe());
-
 
 export const logout = (): void => {
   localStorage.removeItem('tf_token');
@@ -223,7 +214,6 @@ export const fetchProjects = async (): Promise<Project[]> => {
   }
 };
 
-
 export const createProject = async (
   data: CreateProjectData,
 ): Promise<Project> => {
@@ -234,7 +224,6 @@ export const createProject = async (
   }
 };
 
-
 export const fetchProject = async (
   id: string,
 ): Promise<Project & { tasks: Task[] }> => {
@@ -244,7 +233,6 @@ export const fetchProject = async (
     throw new Error(`Failed to fetch project: ${(error as Error).message}`);
   }
 };
-
 
 export const updateProject = async (
   id: string,
@@ -257,7 +245,6 @@ export const updateProject = async (
   }
 };
 
-
 export const deleteProject = async (id: string): Promise<void> => {
   try {
     await del<void>(`/projects/${id}`);
@@ -265,7 +252,6 @@ export const deleteProject = async (id: string): Promise<void> => {
     throw new Error(`Failed to delete project: ${(error as Error).message}`);
   }
 };
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TODO 7: Tasks API
@@ -293,7 +279,6 @@ export const fetchTasks = async (
   }
 };
 
-
 export const createTask = async (
   projectId: string,
   data: CreateTaskData,
@@ -305,7 +290,6 @@ export const createTask = async (
   }
 };
 
-
 export const updateTask = async (
   taskId: string,
   data: UpdateTaskData,
@@ -316,7 +300,6 @@ export const updateTask = async (
     throw new Error(`Failed to update task: ${(error as Error).message}`);
   }
 };
-
 
 export const deleteTask = async (taskId: string): Promise<void> => {
   try {
