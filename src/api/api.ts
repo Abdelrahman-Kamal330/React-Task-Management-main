@@ -215,30 +215,56 @@ export const logout = (): void => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const fetchProjects = async (): Promise<Project[]> => {
-  const data = await get<{ projects: Project[] }>('/projects');
-  return data.projects;
+  try {
+    const data = await get<{ projects: Project[] }>('/projects');
+    return data.projects;
+  } catch (error) {
+    throw new Error(`Failed to fetch projects: ${(error as Error).message}`);
+  }
 };
 
 
-export const createProject = (
+export const createProject = async (
   data: CreateProjectData,
-): Promise<Project> => post<Project>('/projects', data);
+): Promise<Project> => {
+  try {
+    return await post<Project>('/projects', data);
+  } catch (error) {
+    throw new Error(`Failed to create project: ${(error as Error).message}`);
+  }
+};
 
 
-export const fetchProject = (
+export const fetchProject = async (
   id: string,
-): Promise<Project & { tasks: Task[] }> =>
-  get<Project & { tasks: Task[] }>(`/projects/${id}`);
+): Promise<Project & { tasks: Task[] }> => {
+  try {
+    return await get<Project & { tasks: Task[] }>(`/projects/${id}`);
+  } catch (error) {
+    throw new Error(`Failed to fetch project: ${(error as Error).message}`);
+  }
+};
 
 
-export const updateProject = (
+export const updateProject = async (
   id: string,
   data: UpdateProjectData,
-): Promise<Project> => patch<Project>(`/projects/${id}`, data);
+): Promise<Project> => {
+  try {
+    return await patch<Project>(`/projects/${id}`, data);
+  } catch (error) {
+    throw new Error(`Failed to update project: ${(error as Error).message}`);
+  }
+};
 
 
-export const deleteProject = (id: string): Promise<void> =>
-  del<void>(`/projects/${id}`);
+export const deleteProject = async (id: string): Promise<void> => {
+  try {
+    await del<void>(`/projects/${id}`);
+  } catch (error) {
+    throw new Error(`Failed to delete project: ${(error as Error).message}`);
+  }
+};
 
 
 // ─────────────────────────────────────────────────────────────────────────────
