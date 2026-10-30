@@ -4,7 +4,7 @@
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
 }
@@ -31,7 +31,14 @@ export interface AuthResponse {
 
 // ── Mock Data ────────────────────────────────────────────────────────────────
 
-const fakeUsers: FakeUser[] = [];
+const fakeUsers: FakeUser[] = [
+  {
+    id: 'seed-001',
+    name: 'Test User',
+    email: 'test@example.com',
+    password: 'password123',
+  },
+];
 
 // ── Register ─────────────────────────────────────────────────────────────────
 
@@ -51,7 +58,7 @@ export const registerUser = async ({
   }
 
   const user: FakeUser = {
-    id: Date.now(),
+    id: `user-${Date.now()}`,
     name,
     email,
     password,
@@ -61,8 +68,8 @@ export const registerUser = async ({
 
   const token = btoa(
     JSON.stringify({
-      id: user.id,
-      email: user.email,
+      userId: user.id,
+      exp: Date.now() + 24 * 60 * 60 * 1000,
     }),
   );
 
@@ -103,8 +110,8 @@ export const loginUser = async ({
 
   const token = btoa(
     JSON.stringify({
-      id: user.id,
-      email: user.email,
+      userId: user.id,
+      exp: Date.now() + 24 * 60 * 60 * 1000,
     }),
   );
 
@@ -139,6 +146,11 @@ export const getMe = (): User | null => {
 
 export const isAuthenticated = (): boolean =>
   Boolean(localStorage.getItem('token') && getMe());
+
+// ── Token ────────────────────────────────────────────────────────────────────
+// Used by api.ts to attach the Authorization header on Projects/Tasks requests.
+
+export const getToken = (): string | null => localStorage.getItem('token');
 
 // ── Logout ───────────────────────────────────────────────────────────────────
 
