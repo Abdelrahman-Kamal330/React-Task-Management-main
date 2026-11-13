@@ -213,147 +213,61 @@ const db: Database = {
 // Utilities
 // ─────────────────────────────────────────────────────────────────────────────
 
-const createId = (): string => {
-  // TODO:
-  // Generate and return a unique string ID.
-  //
-  // Hint:
-  // You can use Date.now() + a random value.
+const createId = (): string =>
+  `id-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-  throw new Error('TODO: Implement createId()');
-};
+const getCurrentDate = (): string => new Date().toISOString();
 
-const getCurrentDate = (): string => {
-  // TODO:
-  // Return the current date/time in ISO format.
+const makeToken = (userId: string): string =>
+  btoa(
+    JSON.stringify({
+      userId,
+      exp: Date.now() + 24 * 60 * 60 * 1000,
+    }),
+  );
 
-  throw new Error('TODO: Implement getCurrentDate()');
-};
-
-const makeToken = (userId: string): string => {
-  // TODO:
-  // Create a mock authentication token.
-  //
-  // Token payload must contain:
-  // - userId
-  // - expiration time
-  //
-  // Token should expire after 24 hours.
-  //
-  // Hint:
-  // Use JSON.stringify() and btoa().
-
-  void userId;
-
-  throw new Error('TODO: Implement makeToken()');
-};
-
-const getPublicUser = (user: User): PublicUser => {
-  // TODO:
-  // Convert User into PublicUser.
-  //
-  // IMPORTANT:
-  // Never expose the user's password.
-
-  void user;
-
-  throw new Error('TODO: Implement getPublicUser()');
-};
+const getPublicUser = (user: User): PublicUser => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+});
 
 const getUser = (request: Request): User | null => {
-  // TODO:
-  // Extract the currently authenticated user.
-  //
-  // Steps:
-  // 1. Read the Authorization header.
-  // 2. Extract the Bearer token.
-  // 3. Decode the token.
-  // 4. Validate that userId exists.
-  // 5. Check token expiration.
-  // 6. Find the user in db.users.
-  // 7. Return null for invalid authentication.
-  //
-  // IMPORTANT:
-  // Invalid tokens must not crash the application.
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
 
-  void request;
+  const token = authHeader.slice('Bearer '.length);
 
-  return null;
+  try {
+    const payload = JSON.parse(atob(token)) as Partial<TokenPayload>;
+
+    if (!payload.userId || !payload.exp || payload.exp < Date.now()) {
+      return null;
+    }
+
+    return db.users.find((user) => user.id === payload.userId) ?? null;
+  } catch {
+    return null;
+  }
 };
 
-const unauthorized = () => {
-  // TODO:
-  // Return JSON:
-  //
-  // { error: 'unauthorized' }
-  //
-  // HTTP status: 401
+const unauthorized = () =>
+  HttpResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  return HttpResponse.json(
-    { error: 'TODO' },
-    { status: 501 },
-  );
-};
+const notFound = () =>
+  HttpResponse.json({ error: 'not found' }, { status: 404 });
 
-const notFound = () => {
-  // TODO:
-  // Return JSON:
-  //
-  // { error: 'not found' }
-  //
-  // HTTP status: 404
+const forbidden = () =>
+  HttpResponse.json({ error: 'forbidden' }, { status: 403 });
 
-  return HttpResponse.json(
-    { error: 'TODO' },
-    { status: 501 },
-  );
-};
-
-const forbidden = () => {
-  // TODO:
-  // Return JSON:
-  //
-  // { error: 'forbidden' }
-  //
-  // HTTP status: 403
-
-  return HttpResponse.json(
-    { error: 'TODO' },
-    { status: 501 },
-  );
-};
-
-const validationError = (fields: ValidationFields) => {
-  // TODO:
-  // Return a validation error containing:
-  //
-  // {
-  //   error: 'validation failed',
-  //   fields
-  // }
-  //
-  // HTTP status: 400
-
-  void fields;
-
-  return HttpResponse.json(
-    { error: 'TODO' },
-    { status: 501 },
-  );
-};
+const validationError = (fields: ValidationFields) =>
+  HttpResponse.json({ error: 'validation failed', fields }, { status: 400 });
 
 const getParam = (
   param: string | readonly string[] | undefined,
 ): string => {
-  // TODO:
-  // MSW route params may contain different value types.
-  //
-  // Convert the given route parameter into a string.
-  //
-  // Return an empty string when no valid value exists.
-
-  void param;
-
+  if (typeof param === 'string') return param;
+  if (Array.isArray(param)) return param[0] ?? '';
   return '';
 };
 
@@ -368,65 +282,63 @@ export const handlers = [
 
   // POST /auth/register
   http.post(`${BASE_URL}/auth/register`, async ({ request }) => {
-    // TODO:
-    //
-    // 1. Read RegisterRequest from request body.
-    // 2. Trim name and email.
-    // 3. Validate name, email and password.
-    // 4. Return validation errors for missing fields.
-    // 5. Check whether email is already registered.
-    // 6. Email comparison should be case-insensitive.
-    // 7. Create a new User.
-    // 8. Add the user to db.users.
-    // 9. Generate authentication token.
-    // 10. Return token + PublicUser.
-    //
-    // Success HTTP status: 201.
+    const body = (await request.json()) as RegisterRequest;
 
-    void request;
+    const name = body.name?.trim();
+    const email = body.email?.trim();
+    const password = body.password;
+
+    const fields: ValidationFields = {};
+    if (!name) fields.name = 'is required';
+    if (!email) fields.email = 'is required';
+    if (!password) fields.password = 'is required';
+    if (Object.keys(fields).length > 0) return validationError(fields);
+
+    const emailTaken = db.users.some(
+      (user) => user.email.toLowerCase() === email!.toLowerCase(),
+    );
+    if (emailTaken) return validationError({ email: 'already taken' });
+
+    const user: User = {
+      id: createId(),
+      name: name!,
+      email: email!,
+      password: password!,
+    };
+
+    db.users.push(user);
+
+    const token = makeToken(user.id);
 
     return HttpResponse.json(
-      { error: 'TODO: Implement registration' },
-      { status: 501 },
+      { token, user: getPublicUser(user) },
+      { status: 201 },
     );
   }),
 
   // POST /auth/login
   http.post(`${BASE_URL}/auth/login`, async ({ request }) => {
-    // TODO:
-    //
-    // 1. Read LoginRequest from body.
-    // 2. Find user by email and password.
-    // 3. Email comparison should be case-insensitive.
-    // 4. Return 401 for invalid credentials.
-    // 5. Generate authentication token.
-    // 6. Return token + PublicUser.
+    const body = (await request.json()) as LoginRequest;
 
-    void request;
-
-    return HttpResponse.json(
-      { error: 'TODO: Implement login' },
-      { status: 501 },
+    const user = db.users.find(
+      (item) =>
+        item.email.toLowerCase() === body.email?.toLowerCase() &&
+        item.password === body.password,
     );
+
+    if (!user) return unauthorized();
+
+    const token = makeToken(user.id);
+
+    return HttpResponse.json({ token, user: getPublicUser(user) });
   }),
 
   // GET /auth/me
   http.get(`${BASE_URL}/auth/me`, ({ request }) => {
-    // TODO:
-    //
-    // 1. Get authenticated user from request.
-    // 2. Return 401 when authentication is invalid.
-    // 3. Return PublicUser.
-    //
-    // IMPORTANT:
-    // Password must not be returned.
+    const user = getUser(request);
+    if (!user) return unauthorized();
 
-    void request;
-
-    return HttpResponse.json(
-      { error: 'TODO: Implement current user' },
-      { status: 501 },
-    );
+    return HttpResponse.json(getPublicUser(user));
   }),
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -435,116 +347,105 @@ export const handlers = [
 
   // GET /projects
   http.get(`${BASE_URL}/projects`, ({ request }) => {
-    // TODO:
-    //
-    // 1. Authenticate the request.
-    // 2. Return 401 if necessary.
-    // 3. Get projects belonging to the current user.
-    // 4. Calculate task_count for each project.
-    // 5. Calculate done_count for each project.
-    // 6. Return:
-    //
-    // {
-    //   projects: [...]
-    // }
+    const user = getUser(request);
+    if (!user) return unauthorized();
 
-    void request;
+    const projects = db.projects
+      .filter((project) => project.owner_id === user.id)
+      .map((project) => {
+        const tasks = db.tasks.filter(
+          (task) => task.project_id === project.id,
+        );
 
-    return HttpResponse.json(
-      { error: 'TODO: Implement fetch projects' },
-      { status: 501 },
-    );
+        return {
+          ...project,
+          task_count: tasks.length,
+          done_count: tasks.filter((task) => task.status === 'done').length,
+        };
+      });
+
+    return HttpResponse.json({ projects });
   }),
 
   // POST /projects
   http.post(`${BASE_URL}/projects`, async ({ request }) => {
-    // TODO:
-    //
-    // 1. Authenticate user.
-    // 2. Read CreateProjectRequest.
-    // 3. Validate project name.
-    // 4. Trim name and description.
-    // 5. Create Project.
-    // 6. Set owner_id to current user's ID.
-    // 7. Set created_at.
-    // 8. Add project to db.projects.
-    // 9. Return created project.
-    //
-    // Success HTTP status: 201.
+    const user = getUser(request);
+    if (!user) return unauthorized();
 
-    void request;
+    const body = (await request.json()) as CreateProjectRequest;
+    const name = body.name?.trim();
 
-    return HttpResponse.json(
-      { error: 'TODO: Implement create project' },
-      { status: 501 },
-    );
+    if (!name) {
+      return validationError({ name: 'is required' });
+    }
+
+    const project: Project = {
+      id: createId(),
+      name,
+      description: body.description?.trim() ?? '',
+      owner_id: user.id,
+      created_at: getCurrentDate(),
+    };
+
+    db.projects.push(project);
+
+    return HttpResponse.json(project, { status: 201 });
   }),
 
   // GET /projects/:id
   http.get(`${BASE_URL}/projects/:id`, ({ request, params }) => {
-    // TODO:
-    //
-    // 1. Authenticate user.
-    // 2. Extract project ID from params.
-    // 3. Find project.
-    // 4. Return 404 when project doesn't exist.
-    // 5. Verify current user owns the project.
-    // 6. Return 403 when access isn't allowed.
-    // 7. Get tasks belonging to this project.
-    // 8. Return project including tasks.
+    const user = getUser(request);
+    if (!user) return unauthorized();
 
-    void request;
-    void params;
+    const id = getParam(params.id);
+    const project = db.projects.find((item) => item.id === id);
+    if (!project) return notFound();
+    if (project.owner_id !== user.id) return forbidden();
 
-    return HttpResponse.json(
-      { error: 'TODO: Implement fetch project' },
-      { status: 501 },
-    );
+    const tasks = db.tasks.filter((task) => task.project_id === project.id);
+
+    return HttpResponse.json({ ...project, tasks });
   }),
 
   // PATCH /projects/:id
   http.patch(`${BASE_URL}/projects/:id`, async ({ request, params }) => {
-    // TODO:
-    //
-    // 1. Authenticate user.
-    // 2. Find project by ID.
-    // 3. Handle 404.
-    // 4. Check ownership.
-    // 5. Handle 403.
-    // 6. Read UpdateProjectRequest.
-    // 7. Update only provided fields.
-    // 8. Validate project name when supplied.
-    // 9. Return updated project.
+    const user = getUser(request);
+    if (!user) return unauthorized();
 
-    void request;
-    void params;
+    const id = getParam(params.id);
+    const project = db.projects.find((item) => item.id === id);
+    if (!project) return notFound();
+    if (project.owner_id !== user.id) return forbidden();
 
-    return HttpResponse.json(
-      { error: 'TODO: Implement update project' },
-      { status: 501 },
-    );
+    const body = (await request.json()) as UpdateProjectRequest;
+
+    if (body.name !== undefined) {
+      const trimmedName = body.name.trim();
+      if (!trimmedName) return validationError({ name: 'is required' });
+      project.name = trimmedName;
+    }
+
+    if (body.description !== undefined) {
+      project.description = body.description.trim();
+    }
+
+    return HttpResponse.json(project);
   }),
 
   // DELETE /projects/:id
   http.delete(`${BASE_URL}/projects/:id`, ({ request, params }) => {
-    // TODO:
-    //
-    // 1. Authenticate user.
-    // 2. Find project.
-    // 3. Handle 404.
-    // 4. Check ownership.
-    // 5. Handle 403.
-    // 6. Delete project.
-    // 7. Delete all tasks belonging to that project.
-    // 8. Return HTTP 204 No Content.
+    const user = getUser(request);
+    if (!user) return unauthorized();
 
-    void request;
-    void params;
+    const id = getParam(params.id);
+    const project = db.projects.find((item) => item.id === id);
+    if (!project) return notFound();
+    if (project.owner_id !== user.id) return forbidden();
 
-    return HttpResponse.json(
-      { error: 'TODO: Implement delete project' },
-      { status: 501 },
-    );
+    db.projects = db.projects.filter((item) => item.id !== id);
+    db.tasks = db.tasks.filter((task) => task.project_id !== id);
+
+    return new HttpResponse(null, { status: 204 });
   }),
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -553,129 +454,121 @@ export const handlers = [
 
   // GET /projects/:id/tasks
   http.get(`${BASE_URL}/projects/:id/tasks`, ({ request, params }) => {
-    // TODO:
-    //
-    // 1. Authenticate user.
-    // 2. Find project.
-    // 3. Handle 404.
-    // 4. Check project ownership.
-    // 5. Handle 403.
-    // 6. Read query parameters.
-    //
-    // Supported filters:
-    // - status
-    // - priority
-    // - assignee
-    // - search
-    //
-    // 7. Get tasks belonging to the project.
-    // 8. Apply provided filters.
-    // 9. Search should check title and description.
-    // 10. Search should be case-insensitive.
-    // 11. Return:
-    //
-    // {
-    //   tasks: [...]
-    // }
+    const user = getUser(request);
+    if (!user) return unauthorized();
 
-    void request;
-    void params;
+    const projectId = getParam(params.id);
+    const project = db.projects.find((item) => item.id === projectId);
+    if (!project) return notFound();
+    if (project.owner_id !== user.id) return forbidden();
 
-    return HttpResponse.json(
-      { error: 'TODO: Implement fetch tasks' },
-      { status: 501 },
-    );
+    const url = new URL(request.url);
+    const status = url.searchParams.get('status');
+    const priority = url.searchParams.get('priority');
+    const assignee = url.searchParams.get('assignee');
+    const search = url.searchParams.get('search')?.toLowerCase();
+
+    let tasks = db.tasks.filter((task) => task.project_id === projectId);
+
+    if (status) tasks = tasks.filter((task) => task.status === status);
+    if (priority) tasks = tasks.filter((task) => task.priority === priority);
+    if (assignee) {
+      tasks = tasks.filter((task) => task.assignee_id === assignee);
+    }
+    if (search) {
+      tasks = tasks.filter(
+        (task) =>
+          task.title.toLowerCase().includes(search) ||
+          task.description.toLowerCase().includes(search),
+      );
+    }
+
+    return HttpResponse.json({ tasks });
   }),
 
   // POST /projects/:id/tasks
   http.post(
     `${BASE_URL}/projects/:id/tasks`,
     async ({ request, params }) => {
-      // TODO:
-      //
-      // 1. Authenticate user.
-      // 2. Find project.
-      // 3. Handle 404.
-      // 4. Check project ownership.
-      // 5. Handle 403.
-      // 6. Read CreateTaskRequest.
-      // 7. Validate title.
-      // 8. Create task.
-      //
-      // Defaults:
-      // status   -> todo
-      // priority -> medium
-      //
-      // 9. Generate created_at.
-      // 10. Generate updated_at.
-      // 11. Add task to db.tasks.
-      // 12. Return created task.
-      //
-      // Success HTTP status: 201.
+      const user = getUser(request);
+      if (!user) return unauthorized();
 
-      void request;
-      void params;
+      const projectId = getParam(params.id);
+      const project = db.projects.find((item) => item.id === projectId);
+      if (!project) return notFound();
+      if (project.owner_id !== user.id) return forbidden();
 
-      return HttpResponse.json(
-        { error: 'TODO: Implement create task' },
-        { status: 501 },
-      );
+      const body = (await request.json()) as CreateTaskRequest;
+      const title = body.title?.trim();
+      if (!title) return validationError({ title: 'is required' });
+
+      const now = getCurrentDate();
+
+      const task: TaskRecord = {
+        id: createId(),
+        project_id: projectId,
+        title,
+        description: body.description?.trim() ?? '',
+        status: body.status ?? 'todo',
+        priority: body.priority ?? 'medium',
+        assignee_id: body.assignee_id ?? null,
+        due_date: body.due_date ?? null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      db.tasks.push(task);
+
+      return HttpResponse.json(task, { status: 201 });
     },
   ),
 
   // PATCH /tasks/:id
   http.patch(`${BASE_URL}/tasks/:id`, async ({ request, params }) => {
-    // TODO:
-    //
-    // 1. Authenticate user.
-    // 2. Find task.
-    // 3. Handle 404.
-    // 4. Find parent project.
-    // 5. Verify project ownership.
-    // 6. Handle 403.
-    // 7. Read UpdateTaskRequest.
-    // 8. Update only provided properties.
-    //
-    // Supported fields:
-    // - title
-    // - description
-    // - status
-    // - priority
-    // - assignee_id
-    // - due_date
-    //
-    // 9. Do not allow an empty title.
-    // 10. Update updated_at.
-    // 11. Return updated task.
+    const user = getUser(request);
+    if (!user) return unauthorized();
 
-    void request;
-    void params;
+    const id = getParam(params.id);
+    const task = db.tasks.find((item) => item.id === id);
+    if (!task) return notFound();
 
-    return HttpResponse.json(
-      { error: 'TODO: Implement update task' },
-      { status: 501 },
-    );
+    const project = db.projects.find((item) => item.id === task.project_id);
+    if (!project || project.owner_id !== user.id) return forbidden();
+
+    const body = (await request.json()) as UpdateTaskRequest;
+
+    if (body.title !== undefined) {
+      const trimmedTitle = body.title.trim();
+      if (!trimmedTitle) return validationError({ title: 'cannot be empty' });
+      task.title = trimmedTitle;
+    }
+    if (body.description !== undefined) {
+      task.description = body.description.trim();
+    }
+    if (body.status !== undefined) task.status = body.status;
+    if (body.priority !== undefined) task.priority = body.priority;
+    if (body.assignee_id !== undefined) task.assignee_id = body.assignee_id;
+    if (body.due_date !== undefined) task.due_date = body.due_date;
+
+    task.updated_at = getCurrentDate();
+
+    return HttpResponse.json(task);
   }),
 
   // DELETE /tasks/:id
   http.delete(`${BASE_URL}/tasks/:id`, ({ request, params }) => {
-    // TODO:
-    //
-    // 1. Authenticate user.
-    // 2. Find task.
-    // 3. Handle 404.
-    // 4. Find parent project.
-    // 5. Check project ownership.
-    // 6. Handle 403.
-    // 7. Delete task from db.tasks.
-    // 8. Return HTTP 204 No Content.
+    const user = getUser(request);
+    if (!user) return unauthorized();
 
-    void request;
-    void params;
+    const id = getParam(params.id);
+    const task = db.tasks.find((item) => item.id === id);
+    if (!task) return notFound();
 
-    return HttpResponse.json(
-      { error: 'TODO: Implement delete task' },
-      { status: 501 },
-    );
+    const project = db.projects.find((item) => item.id === task.project_id);
+    if (!project || project.owner_id !== user.id) return forbidden();
+
+    db.tasks = db.tasks.filter((item) => item.id !== id);
+
+    return new HttpResponse(null, { status: 204 });
   }),
 ];
